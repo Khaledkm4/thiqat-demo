@@ -7,23 +7,28 @@ logging.basicConfig(level=logging.INFO)
 MAX_TRANSFER_LIMIT_SAR = 25000
 
 def process_transfer(customer_id: str, amount: float, is_authorized: bool) -> dict:
-    # 1. Validate authorization
+    # Generate transaction identifier early for auditability of all requests
+    tx_id = str(uuid.uuid4())
+
+    # 1. Validate authorization and record audit event
+    auth_status = "AUTHORIZED" if is_authorized else "UNAUTHORIZED"
+    logging.info(f"AUDIT_EVENT | TxID={tx_id} | Customer={customer_id} | AuthorizationResult={auth_status}")
+
     if not is_authorized:
         raise PermissionError("Transfer rejected: Customer authorization required.")
 
     # 2. Reject non-positive amounts
     if amount <= 0:
+        logging.warning(f"AUDIT_EVENT | TxID={tx_id} | Customer={customer_id} | Amount={amount} SAR | Status=REJECTED | Reason=NonPositiveAmount")
         raise ValueError("Transfer rejected: Amount must be strictly positive.")
 
     # 3. Check transfer limit
     if amount > MAX_TRANSFER_LIMIT_SAR:
+        logging.warning(f"AUDIT_EVENT | TxID={tx_id} | Customer={customer_id} | Amount={amount} SAR | Status=REJECTED | Reason=ExceedsLimit")
         raise ValueError(f"Transfer rejected: Amount exceeds maximum limit of {MAX_TRANSFER_LIMIT_SAR} SAR.")
 
-    # 4. Generate transaction identifier
-    tx_id = str(uuid.uuid4())
-
-    # 5. Record immutable audit log
-    logging.info(f"AUDIT_EVENT | TxID={tx_id} | Customer={customer_id} | Amount={amount} SAR | Status=SUCCESS")
+    # Final success audit log
+    logging.info(f"AUDIT_EVENT | TxID={tx_id} | Customer={customer_id} | Amount={amount} SAR | Status=APPROVED")
 
     return {
         "status": "APPROVED",
